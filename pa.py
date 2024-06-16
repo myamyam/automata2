@@ -59,13 +59,15 @@ class DerivationTree:
         # Write your code here. e.g.
         # str = "Aab"
         # return str
-        if is_terminal(self.value):
+        result= ""
+        n=len(self.children)
+        if n==0:
             return self.value
-        result = ""
-        for child in self.children:
-            result += child.string()
+        else:
+            for child in self.children:
+                result+=child.string()
         return result
-        
+    
     def length(self):
         """
         :return: Length of terminal nodes of derivation tree (not variables).
@@ -73,13 +75,10 @@ class DerivationTree:
         # Write your code here. e.g.
         # l = 2
         # return l
-        if is_terminal(self.value):
-            return 1
-        length = 0
-        for child in self.children:
-            length += child.length()
-        return length
-
+        n=0
+        for symbol in self.string():
+            n+= int(is_terminal(symbol))
+        return n
 
 class CFG:
     def __init__(self, filename):
@@ -110,26 +109,31 @@ class CFG:
         # l = [DerivationTree("S"), DerivationTree("A")]
         # done = True
         # return l, done
-        if is_terminal(tree.value):
-            return [tree], False
-        
-        children = []
-        done = False
-        for child in tree.children:
-            if is_variable(child.value) and not done:
-                for production in self.rules[child.value]:
-                    new_children = [DerivationTree(c) for c in production]
-                    new_tree = DerivationTree(tree.value, tree.children[:])
-                    new_tree.children = tree.children[:]
-                    new_tree.children[new_tree.children.index(child)] = DerivationTree(child.value, new_children)
-                    children.append(new_tree)
-                done = True
-            else:
-                new_child, _ = self.make_child(child)
-                children.append(new_child)
-                
-        return children, done
 
+        l = []
+        done = False
+        
+        if len(tree.children) == 0:
+            if tree.value in self.rules:
+                sub = []
+                for rule in self.rules[tree.value]:
+                    now = copy.deepcopy(tree)
+                    now.children = [DerivationTree(a) for a in rule]
+                    sub.append(now)
+                return sub, True
+            else:
+                return [], False
+                
+        else:
+            for i, child in enumerate(tree.children):
+                sub, done = self.make_child(child)
+                if done:
+                    for s in sub:
+                        now = copy.deepcopy(tree)
+                        now.children[i] = s
+                        l.append(now)
+                    break
+            return l, done
 
     def make_string(self, l = 0):
         """
@@ -139,20 +143,32 @@ class CFG:
         # Write your code here. e.g.
         # l = [DerivationTree("S"), DerivationTree("A")]
         # return l
-        trees = [DerivationTree("S")]
-        while True:
-            new_trees = []
-            for tree in trees:
-                if tree.length() == l:
-                    new_trees.append(tree)
-                elif tree.length() < l:
-                    children, _ = self.make_child(tree)
-                    new_trees.extend(children)
-            if not new_trees:
-                break
-            trees = new_trees
-        return [tree for tree in trees if tree.length() == l]
-
+        temp = []
+        result = []
+        
+        def tree_list(tree, l, depth):
+            if len(tree.string()) == tree.length() == l:
+                temp.append(tree.string())
+            else:
+                if tree.length() < l:
+                    new_tree, _ = self.make_child(tree)
+                    for t in new_tree:
+                        if t.length() <= l:
+                            tree_list(t, l, depth + 1)
+                        else:
+                            pass
+                else:
+                    pass
+        
+        for root in list(self.rules.keys()):
+            tree_list(DerivationTree(root), l, 0)
+        
+        for string in temp:
+            if string not in result:
+                result.append(string)
+                
+        return result
+    
     def ambiguous_checker(self):
         """
         Just check the ambiguity only for strings of length 10 or less.
@@ -161,15 +177,36 @@ class CFG:
         # Write your code here. e.g.
         # ambiguous = True
         # return ambiguous
-        seen_strings = {}
-        for length in range(1, 11):
-            trees = self.make_string(length)
-            for tree in trees:
-                s = tree.string()
-                if s in seen_strings:
-                    return True
-                seen_strings[s] = tree
+        temp = []
+        result = []
+        ambiguous = False
+        
+        def tree_list(tree, length, depth):
+            if len(tree.string()) == tree.length():
+                temp.append(tree.string())
+            else:
+                if tree.length() < length:
+                    new_tree, _ = self.make_child(tree)
+                    for t in new_tree:
+                        if t.length() <= length:
+                            tree_list(t, length, depth + 1)
+                        else:
+                            pass
+                else:
+                    pass
+        
+        for root in list(self.rules.keys()):
+            tree_list(DerivationTree(root), 10, 0)
+
+        for string in temp:
+            if string not in result:
+                result.append(string)
+            else:
+                ambiguous = True
+                return ambiguous
+        
         return False
+
 
 
 def test(*args):
